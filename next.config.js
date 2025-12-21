@@ -3,9 +3,6 @@ const nextConfig = {
 	typescript: {
 		ignoreBuildErrors: true,
 	},
-	eslint: {
-		ignoreDuringBuilds: true,
-	},
 	turbopack: {
 		resolveAlias: {
 			// Alinea con webpack: evita resolver 'canvas' en el cliente usando un shim

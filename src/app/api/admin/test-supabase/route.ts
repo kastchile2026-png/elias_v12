@@ -1,7 +1,7 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -16,10 +16,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({
+    return NextResponse.json({
       ...diagnostics,
       error: 'Variables de entorno faltantes'
-    });
+    }, { status: 500 });
   }
 
   // Test 1: Crear cliente con service role
@@ -84,5 +84,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     diagnostics.tests.clientCreation = `❌ Error al crear cliente: ${e.message}`;
   }
 
-  return res.status(200).json(diagnostics);
+  return NextResponse.json(diagnostics);
 }

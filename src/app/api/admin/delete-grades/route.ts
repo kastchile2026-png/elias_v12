@@ -1,4 +1,4 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // La service key debe estar en una variable de entorno segura del backend
@@ -20,23 +20,22 @@ function getSupabaseClient(): SupabaseClient {
   return supabase;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
-  
+export async function POST(request: NextRequest) {
   // Verificar si Supabase está configurado
   if (!supabaseUrl || !serviceKey) {
-    return res.status(503).json({ 
+    return NextResponse.json({ 
       error: 'Supabase no configurado', 
       details: 'Este endpoint requiere configuración de Supabase que no está disponible en modo SQL local' 
-    });
+    }, { status: 503 });
   }
   
-  const { year } = req.body;
+  const body = await request.json();
+  const { year } = body;
+  
   if (!year || typeof year !== 'number') {
-    return res.status(400).json({ error: 'Año inválido' });
+    return NextResponse.json({ error: 'Año inválido' }, { status: 400 });
   }
+  
   try {
     const client = getSupabaseClient();
     
@@ -46,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select('*', { count: 'exact', head: true })
       .eq('year', year);
     if (countError) {
-      return res.status(500).json({ error: countError.message });
+      return NextResponse.json({ error: countError.message }, { status: 500 });
     }
     // Borrar
     const { error, count } = await client
@@ -54,20 +53,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .delete({ count: 'exact' })
       .eq('year', year);
     if (error) {
-      return res.status(500).json({ error: error.message });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
     // Contar después
     const { count: afterCount } = await client
       .from('grades')
       .select('*', { count: 'exact', head: true })
       .eq('year', year);
-    return res.status(200).json({
+    return NextResponse.json({
       deleted: count,
       beforeCount,
       afterCount,
       success: true,
     });
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message || 'Error desconocido' });
+    return NextResponse.json({ error: e?.message || 'Error desconocido' }, { status: 500 });
   }
 }
