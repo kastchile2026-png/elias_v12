@@ -674,99 +674,137 @@ export default function UserManagement() {
       if (oldUsername !== newUsername) {
         console.log(`🔄 Actualizando referencias de profesor: ${oldUsername} -> ${newUsername}`);
         
-        // 1. Actualizar comunicaciones (createdBy)
-        try {
-          const communications = JSON.parse(localStorage.getItem('smart-student-communications') || '[]');
-          const updatedComms = communications.map((c: any) => {
-            if (c.createdBy === oldUsername) {
-              return { ...c, createdBy: newUsername };
-            }
-            return c;
-          });
-          localStorage.setItem('smart-student-communications', JSON.stringify(updatedComms));
-          console.log(`✅ Comunicaciones actualizadas`);
-        } catch (e) { console.warn('Error actualizando comunicaciones:', e); }
+        // Helper para actualizar arrays en localStorage
+        const updateStorageArray = (key: string, updateFn: (item: any) => any) => {
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (!Array.isArray(data)) return;
+            const updated = data.map(updateFn);
+            localStorage.setItem(key, JSON.stringify(updated));
+            console.log(`✅ Actualizado: ${key}`);
+          } catch (e) { console.warn(`Error actualizando ${key}:`, e); }
+        };
         
-        // 2. Actualizar tareas (assignedBy)
-        try {
-          const tasks = JSON.parse(localStorage.getItem('smart-student-tasks') || '[]');
-          const updatedTasks = tasks.map((t: any) => {
-            if (t.assignedBy === oldUsername || t.teacherId === oldId || t.teacherUsername === oldUsername) {
-              return { 
-                ...t, 
-                assignedBy: t.assignedBy === oldUsername ? newUsername : t.assignedBy,
-                teacherUsername: t.teacherUsername === oldUsername ? newUsername : t.teacherUsername
-              };
-            }
-            return t;
-          });
-          localStorage.setItem('smart-student-tasks', JSON.stringify(updatedTasks));
-          console.log(`✅ Tareas actualizadas`);
-        } catch (e) { console.warn('Error actualizando tareas:', e); }
+        // Obtener todos los años relevantes (buscar claves que terminen en -YYYY)
+        const relevantYears: number[] = [];
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear - 5; y <= currentYear + 1; y++) {
+          relevantYears.push(y);
+        }
         
-        // 3. Actualizar calificaciones (teacherUsername, createdBy)
-        try {
-          const grades = JSON.parse(localStorage.getItem('smart-student-grades') || '[]');
-          const updatedGrades = grades.map((g: any) => {
-            if (g.teacherUsername === oldUsername || g.createdBy === oldUsername) {
+        // 1. Actualizar comunicaciones (createdBy) - clave única sin año
+        updateStorageArray('smart-student-communications', (c: any) => {
+          if (c.createdBy === oldUsername) {
+            return { ...c, createdBy: newUsername };
+          }
+          return c;
+        });
+        
+        // 2. Actualizar tareas (assignedBy, teacherUsername) - clave única sin año
+        updateStorageArray('smart-student-tasks', (t: any) => {
+          if (t.assignedBy === oldUsername || t.teacherId === oldId || t.teacherUsername === oldUsername) {
+            return { 
+              ...t, 
+              assignedBy: t.assignedBy === oldUsername ? newUsername : t.assignedBy,
+              teacherUsername: t.teacherUsername === oldUsername ? newUsername : t.teacherUsername,
+              teacherId: t.teacherId === oldUsername ? newUsername : t.teacherId
+            };
+          }
+          return t;
+        });
+        
+        // 3. Actualizar calificaciones (teacherUsername, createdBy) - clave única sin año
+        updateStorageArray('smart-student-grades', (g: any) => {
+          if (g.teacherUsername === oldUsername || g.createdBy === oldUsername || g.teacherId === oldUsername) {
+            return { 
+              ...g, 
+              teacherUsername: g.teacherUsername === oldUsername ? newUsername : g.teacherUsername,
+              createdBy: g.createdBy === oldUsername ? newUsername : g.createdBy,
+              teacherId: g.teacherId === oldUsername ? newUsername : g.teacherId
+            };
+          }
+          return g;
+        });
+        
+        // 4. Actualizar asistencia (teacherUsername, createdBy, recordedBy) - clave única sin año
+        updateStorageArray('smart-student-attendance', (a: any) => {
+          if (a.teacherUsername === oldUsername || a.createdBy === oldUsername || a.recordedBy === oldUsername || a.teacherId === oldUsername) {
+            return { 
+              ...a, 
+              teacherUsername: a.teacherUsername === oldUsername ? newUsername : a.teacherUsername,
+              createdBy: a.createdBy === oldUsername ? newUsername : a.createdBy,
+              recordedBy: a.recordedBy === oldUsername ? newUsername : a.recordedBy,
+              teacherId: a.teacherId === oldUsername ? newUsername : a.teacherId
+            };
+          }
+          return a;
+        });
+        
+        // 5. Actualizar asignaciones de profesor - LEGACY y POR AÑO
+        const updateTeacherAssignment = (a: any) => {
+          if (a.teacherUsername === oldUsername || a.teacherId === oldUsername || a.teacherId === oldId) {
+            return { 
+              ...a, 
+              teacherUsername: a.teacherUsername === oldUsername ? newUsername : a.teacherUsername,
+              teacherId: (a.teacherId === oldUsername || a.teacherId === oldId) ? (a.teacherId === oldUsername ? newUsername : a.teacherId) : a.teacherId
+            };
+          }
+          return a;
+        };
+        
+        // Legacy (sin año)
+        updateStorageArray('smart-student-teacher-assignments', updateTeacherAssignment);
+        
+        // Por año
+        relevantYears.forEach(year => {
+          updateStorageArray(`smart-student-teacher-assignments-${year}`, updateTeacherAssignment);
+        });
+        
+        // 6. Actualizar presentaciones/slides (createdBy)
+        updateStorageArray('smart-student-slides', (s: any) => {
+          if (s.createdBy === oldUsername) {
+            return { ...s, createdBy: newUsername };
+          }
+          return s;
+        });
+        
+        // 7. Actualizar test-grades por año (teacherUsername, createdBy)
+        relevantYears.forEach(year => {
+          updateStorageArray(`smart-student-test-grades-${year}`, (g: any) => {
+            if (g.teacherUsername === oldUsername || g.createdBy === oldUsername || g.teacherId === oldUsername) {
               return { 
                 ...g, 
                 teacherUsername: g.teacherUsername === oldUsername ? newUsername : g.teacherUsername,
-                createdBy: g.createdBy === oldUsername ? newUsername : g.createdBy
+                createdBy: g.createdBy === oldUsername ? newUsername : g.createdBy,
+                teacherId: g.teacherId === oldUsername ? newUsername : g.teacherId
               };
             }
             return g;
           });
-          localStorage.setItem('smart-student-grades', JSON.stringify(updatedGrades));
-          console.log(`✅ Calificaciones actualizadas`);
-        } catch (e) { console.warn('Error actualizando calificaciones:', e); }
+        });
         
-        // 4. Actualizar asistencia (teacherUsername, createdBy)
-        try {
-          const attendance = JSON.parse(localStorage.getItem('smart-student-attendance') || '[]');
-          const updatedAttendance = attendance.map((a: any) => {
-            if (a.teacherUsername === oldUsername || a.createdBy === oldUsername || a.recordedBy === oldUsername) {
-              return { 
-                ...a, 
-                teacherUsername: a.teacherUsername === oldUsername ? newUsername : a.teacherUsername,
-                createdBy: a.createdBy === oldUsername ? newUsername : a.createdBy,
-                recordedBy: a.recordedBy === oldUsername ? newUsername : a.recordedBy
-              };
-            }
-            return a;
-          });
-          localStorage.setItem('smart-student-attendance', JSON.stringify(updatedAttendance));
-          console.log(`✅ Asistencia actualizada`);
-        } catch (e) { console.warn('Error actualizando asistencia:', e); }
+        // 8. Actualizar teachers por año (el propio registro del profesor)
+        relevantYears.forEach(year => {
+          const key = `smart-student-teachers-${year}`;
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return;
+            const teachersList = JSON.parse(raw);
+            if (!Array.isArray(teachersList)) return;
+            const updated = teachersList.map((t: any) => {
+              if (t.username === oldUsername || t.id === oldId) {
+                return { ...t, username: newUsername };
+              }
+              return t;
+            });
+            localStorage.setItem(key, JSON.stringify(updated));
+            console.log(`✅ Actualizado: ${key}`);
+          } catch (e) { console.warn(`Error actualizando ${key}:`, e); }
+        });
         
-        // 5. Actualizar asignaciones de profesor
-        try {
-          const assignments = JSON.parse(localStorage.getItem('smart-student-teacher-assignments') || '[]');
-          const updatedAssignments = assignments.map((a: any) => {
-            if (a.teacherUsername === oldUsername || a.teacherId === oldId) {
-              return { 
-                ...a, 
-                teacherUsername: a.teacherUsername === oldUsername ? newUsername : a.teacherUsername
-              };
-            }
-            return a;
-          });
-          localStorage.setItem('smart-student-teacher-assignments', JSON.stringify(updatedAssignments));
-          console.log(`✅ Asignaciones de profesor actualizadas`);
-        } catch (e) { console.warn('Error actualizando asignaciones:', e); }
-        
-        // 6. Actualizar presentaciones/slides (createdBy)
-        try {
-          const slides = JSON.parse(localStorage.getItem('smart-student-slides') || '[]');
-          const updatedSlides = slides.map((s: any) => {
-            if (s.createdBy === oldUsername) {
-              return { ...s, createdBy: newUsername };
-            }
-            return s;
-          });
-          localStorage.setItem('smart-student-slides', JSON.stringify(updatedSlides));
-          console.log(`✅ Presentaciones actualizadas`);
-        } catch (e) { console.warn('Error actualizando presentaciones:', e); }
+        console.log(`✅ Migración de referencias de ${oldUsername} -> ${newUsername} completada`);
       }
       
   const updatedTeachers = teachers.map(t => 
