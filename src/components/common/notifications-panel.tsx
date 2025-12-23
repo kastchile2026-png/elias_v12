@@ -268,6 +268,45 @@ export default function NotificationsPanel({ count: propCount }: NotificationsPa
             if (!studentMap.has(u.id)) studentMap.set(u.id, u);
           });
 
+        // ============ CONSTRUIR ASIGNACIONES DE ESTUDIANTES ============
+        // Primero intentar obtener desde student-assignments
+        let studentAssignmentsForGuardian = assignments.filter((a: any) => 
+          a && (assignedStudentIds.includes(a.studentId) || Array.from(studentMap.keys()).includes(a.studentId))
+        );
+        
+        // Si no hay asignaciones en student-assignments, buscar en los datos de estudiantes
+        if (studentAssignmentsForGuardian.length === 0) {
+          // Buscar en studentsForYear
+          studentsForYear
+            .filter((s: any) => assignedStudentIds.includes(s.id) || assignedStudentIds.includes(s.username))
+            .forEach((s: any) => {
+              if (s.courseId && s.sectionId) {
+                studentAssignmentsForGuardian.push({
+                  studentId: s.id,
+                  courseId: s.courseId,
+                  sectionId: s.sectionId
+                });
+              }
+            });
+          
+          // Buscar en allUsers
+          allUsers
+            .filter((u: any) => (u.role === 'student' || u.type === 'student') && 
+              (assignedStudentIds.includes(u.id) || assignedStudentIds.includes(u.username)))
+            .forEach((u: any) => {
+              if (u.courseId && u.sectionId) {
+                const exists = studentAssignmentsForGuardian.find((a: any) => a.studentId === u.id);
+                if (!exists) {
+                  studentAssignmentsForGuardian.push({
+                    studentId: u.id,
+                    courseId: u.courseId,
+                    sectionId: u.sectionId
+                  });
+                }
+              }
+            });
+        }
+
         // 🔧 CORRECCIÓN: Crear instancias separadas por cada estudiante para comunicaciones de curso
         const guardianCommunications: any[] = [];
         all.forEach((comm: any) => {
@@ -291,9 +330,6 @@ export default function NotificationsPanel({ count: propCount }: NotificationsPa
           }
           // Comunicaciones de curso: crear una instancia por cada estudiante que pertenece al curso/sección
           if (comm.type === 'course' && comm.targetCourse) {
-            const studentAssignmentsForGuardian = assignments.filter((a: any) => 
-              a && (assignedStudentIds.includes(a.studentId) || Array.from(studentMap.keys()).includes(a.studentId))
-            );
             // 🔧 Encontrar TODOS los estudiantes que coinciden, no solo el primero
             const matchingAssignments = studentAssignmentsForGuardian.filter((a: any) => {
               const courseMatch = a.courseId === comm.targetCourse;
